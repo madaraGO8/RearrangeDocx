@@ -36,7 +36,7 @@ namespace CleanWordFile
             List<string> frontMatterList1 = new List<string> { "highlights" };
             frontMatterList.AddRange(frontMatterList1);
 
-            Regex referencesRegex = new Regex(@"^\breference\b|^\breferences\b|^\bfurther reading\b|^\bliterature\b|^\bliterature cited\b$|^\bliterature\b|^\bworks cited\b$|^\breferences cited\b$|^\breferencias\b$|^\bbibliography\b$|^\bbibliography list\b");
+            Regex referencesRegex = new Regex(@"^\breference\b|^\breferences\b|^\bfurther reading\b|^\bliterature\b|^\bliterature cited\b$|\b[L1]iterature\b$|^\bworks cited\b$|^\breferences cited\b$|^\breferencias\b$|^\bbibliography\b$|^\bbibliography list\b");
             Regex keywordsRegex = new Regex(@"^\bkeyword group\b|^\bkeyword\b|^\bkeywords\b|^\bkeyterms\b|^\bkey-word\b|^\bkey-words\b|^\bkey word\b|^\bkey words\b");
             bool isKeywordLast = false;
             if (File.Exists(path))
@@ -51,7 +51,7 @@ namespace CleanWordFile
                     //List<string> docxList = root.Descendants(W.p).Descendants(W.r).Descendants(W.t).Select(t => t.Value.ToLower().Trim()).Take(50).ToList();
                     List<XElement> docxList = root.Descendants(W.p).ToList();
 
-                    List<string> docxList1 = root.Descendants(W.p).Take(35).Select(p => string.Concat(p.Descendants(W.t)
+                    List<string> docxList1 = root.Descendants(W.p).Select(p => string.Concat(p.Descendants(W.t)
                         .Select(t => t.Value)).ToLower().Trim()).Select(text => cleanupRegex.Replace(text, "")).ToList();
                     string lastMatchingHeading = string.Empty;
                     string introHeading = string.Empty;
@@ -71,12 +71,28 @@ namespace CleanWordFile
                                 }
                             }
                         }
-                        if (Regex.IsMatch(docxList1[i], @"\bintroduction\b", RegexOptions.IgnoreCase) && docxList1[i].ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length <= 3)
+                        if (Regex.IsMatch(docxList1[i], @"^\bintroduction\b", RegexOptions.IgnoreCase) && docxList1[i].ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length <= 3)
                         {
                             introIndex = i;
                         }
                     }
-                    if (lastMatchingIndex != -1)
+                    if (introIndex != -1)
+                    {
+                        XElement targetParagraph = docxList[introIndex];
+                        if (targetParagraph != null)
+                        {
+                            var allElements = root.Descendants().Where(e => e.Name == W.p || e.Name == W.tbl || e.Name == W.drawing).ToList();
+                            int targetIndex = allElements.IndexOf(targetParagraph);
+                            if (targetIndex > 0)
+                            {
+                                for (int i = 0; i < targetIndex; i++)
+                                {
+                                    allElements[i].Remove();
+                                }
+                            }
+                        }
+                    }
+                    else if (lastMatchingIndex != -1)
                     {
                         //if (docxList[lastMatchingIndex + 1].Value.Length == 0)
                         //{
@@ -90,17 +106,14 @@ namespace CleanWordFile
                         //else
 
                         var tempLastMatchingIndex = lastMatchingIndex;
+                       
                         if (isKeywordLast && docxList[lastMatchingIndex].Value.ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length != 0 && docxList[tempLastMatchingIndex].Value.ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length >= 3)
                         {
                             tempLastMatchingIndex += 1;
                         }
                         else if (isKeywordLast && docxList[lastMatchingIndex].Value.ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length != 0 && docxList[tempLastMatchingIndex].Value.ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length <= 4)
                         {
-                            //while (docxList[tempLastMatchingIndex].Value.ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length != 0 ||
-                            //        docxList[tempLastMatchingIndex].Value.ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length >= 10)
-                            //{
-                                tempLastMatchingIndex += 2;
-                            //}
+                            tempLastMatchingIndex += 2;
                         }
                         else
                         {
@@ -113,27 +126,32 @@ namespace CleanWordFile
                                 tempLastMatchingIndex = lastMatchingIndex + 2;
                             }
 
-                            while (docxList[tempLastMatchingIndex].Value.ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length != 0 ||
+                            while (docxList[tempLastMatchingIndex].Value.ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length == 0 ||
                                     docxList[tempLastMatchingIndex].Value.ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length >= 10)
                             {
                                 tempLastMatchingIndex++;
                             }
                         }
-
+                        while (tempLastMatchingIndex < docxList.Count && docxList[tempLastMatchingIndex].Value.ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length == 0)
+                        {
+                            tempLastMatchingIndex++;
+                        }
 
                         if (tempLastMatchingIndex != 0)
                         {
-                            for (int i = 0; i < tempLastMatchingIndex; i++)
+                            XElement targetParagraph = docxList[tempLastMatchingIndex];
+                            if (targetParagraph != null)
                             {
-                                docxList[i].Remove();
+                                var allElements = root.Descendants().Where(e => e.Name == W.p || e.Name == W.tbl || e.Name == W.drawing).ToList();
+                                int targetIndex = allElements.IndexOf(targetParagraph);
+                                if (targetIndex > 0)
+                                {
+                                    for (int i = 0; i < targetIndex; i++)
+                                    {
+                                        allElements[i].Remove();
+                                    }
+                                }
                             }
-                        }
-                    }
-                    else if (introIndex != -1)
-                    {
-                        for (int i = 0; i < introIndex; i++)
-                        {
-                            docxList[i].Remove();
                         }
                     }
                     wDoc.MainDocumentPart.PutXDocument();
@@ -229,6 +247,7 @@ namespace CleanWordFile
                         {
                             var refEndNote = refNext.Descendants(W.endnotePr).FirstOrDefault();
                             var refInMan = references.ElementsAfterSelf().ToList();
+
                             if (refEndNote != null)
                             {
                                 var xEndnoteDoc = XDocument.Load(wDoc.MainDocumentPart.EndnotesPart.GetStream());
