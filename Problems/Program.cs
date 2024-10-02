@@ -9,7 +9,7 @@ namespace Problems
         public static int x = 123321;
         static void Main(string[] args)
         {
-            //new Solutions().TwoSum(nums, target);
+            new Solutions().TwoSum(nums, target);
             new Solutions().IsPalindrome(x);
         }
     }

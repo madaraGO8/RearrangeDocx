@@ -1,5 +1,6 @@
 ﻿using DocumentFormat.OpenXml.Drawing;
 using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
 using OpenXmlPowerTools;
 using System;
 using System.Collections.Generic;
@@ -14,15 +15,15 @@ namespace CleanWordFile
 {
     class CleanWordFile
     {
+        #region CleanDocx
         public void CleanDocx(string path, string newPath, bool isTrue)
         {
             string autoStyleConfig = @"C:\Users\Prathamesh.sulakhe\Desktop\Folders\Packages\02-09-2024\10Packages\New folder\AutostyleConfig.xml";
-            //string autoStyleConfig = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AutostyleConfig.xml");
             string abc = File.ReadAllText(autoStyleConfig);
             XElement autoStyleContent = XElement.Parse(abc);
             Regex cleanupRegex = new Regex(@"[:\-]+$", RegexOptions.Compiled);
 
-            List<string> backMatterList = new List<string> { "notes", "note", "endnotes", "endnote", "footnotes", "footnote" };
+            List<string> backMatterList = new List<string> { "endnotes", "endnote", "footnotes", "footnote" };
 
             List<string> suppHead = autoStyleContent.Descendants("component").Where(a => a.Attribute("type") != null && (a.Attribute("type").Value == "Referencing")).Descendants("manuscript-headings").
                 Where(a => a.Attribute("type").Value == "Supplementaryhead").Descendants("term").Select(term => term.Value.ToLower().Trim()).ToList();
@@ -36,7 +37,7 @@ namespace CleanWordFile
             List<string> frontMatterList1 = new List<string> { "highlights" };
             frontMatterList.AddRange(frontMatterList1);
 
-            Regex referencesRegex = new Regex(@"^\breference\b|^\breferences\b|^\bfurther reading\b|^\bliterature\b|^\bliterature cited\b$|\b[L1]iterature\b$|^\bworks cited\b$|^\breferences cited\b$|^\breferencias\b$|^\bbibliography\b$|^\bbibliography list\b");
+            Regex referencesRegex = new Regex(@"^\b\d? ?-? ?reference\b|^\b\d? ?-? ?references\b|^\bfurther reading\b|^\bliterature\b|^\bliterature cited\b$|^\bworks cited\b$|^\breferences cited\b$|^\breferencias\b$|^\bbibliography\b$|^\bbibliography list\b");
             Regex keywordsRegex = new Regex(@"^\bkeyword group\b|^\bkeyword\b|^\bkeywords\b|^\bkeyterms\b|^\bkey-word\b|^\bkey-words\b|^\bkey word\b|^\bkey words\b");
             bool isKeywordLast = false;
             if (File.Exists(path))
@@ -94,19 +95,8 @@ namespace CleanWordFile
                     }
                     else if (lastMatchingIndex != -1)
                     {
-                        //if (docxList[lastMatchingIndex + 1].Value.Length == 0)
-                        //{
-                        //    var intro = root.Descendants(W.p).FirstOrDefault(a => a.Descendants(W.r).Any(r => r.Descendants(W.t).FirstOrDefault().Value == "introduction"));
-                        //    for (int i = 0; i <= lastMatchingIndex + 1; i++)
-                        //    {
-                        //        docxList[i].Remove();
-                        //    }
-                        //}
-                        ////var removeEle = docxList[lastMatchingIndex].ElementsBeforeSelf();
-                        //else
-
                         var tempLastMatchingIndex = lastMatchingIndex;
-                       
+
                         if (isKeywordLast && docxList[lastMatchingIndex].Value.ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length != 0 && docxList[tempLastMatchingIndex].Value.ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length >= 3)
                         {
                             tempLastMatchingIndex += 1;
@@ -167,9 +157,7 @@ namespace CleanWordFile
                     string firstMatchingHeading = string.Empty;
                     int firstMatchingIndex = -1;
 
-                    // Loop through docxList1 in reverse to find the first matching heading from backMatterList
-                    //for (int i = docxList.Count - 1; i >= 0; i--)  // Looping backwards
-                    for (int i = 0; i <= docxList.Count - 1; i++)  // Looping backwards
+                    for (int i = 0; i <= docxList.Count - 1; i++)
                     {
                         foreach (var heading in backMatterList)
                         {
@@ -182,24 +170,9 @@ namespace CleanWordFile
                     }
                     if (firstMatchingIndex != -1)
                     {
-                        //if (docxList[firstMatchingIndex + 1].Value.Length > 15)
-                        //{
-                        //    for (int i = firstMatchingIndex + 1; i < docxList.Count; i++)
-                        //    {
-                        //        docxList[i].Remove();
-                        //    }
-                        //    docxList[firstMatchingIndex].Remove();
-                        //}
-                        //else
-                        //{
-                        //    for (int i = firstMatchingIndex + 1; i < docxList.Count; i++)
-                        //    {
-                        //        docxList[i].Remove();  // Remove all elements after the first matching index
-                        //    }
-                        //}
                         for (int i = firstMatchingIndex; i < docxList.Count; i++)
                         {
-                            docxList[i].Remove();  // Remove all elements after the first matching index
+                            docxList[i].Remove();
                         }
                     }
                     wDoc.MainDocumentPart.PutXDocument();
@@ -212,253 +185,225 @@ namespace CleanWordFile
                     #endregion
 
                     #region References
-                    var references = root.Descendants(W.p)
-                      .Where(p => p.Ancestors(W.tc).Count() == 0 && p.Descendants(W.r).Any(r =>
-                      {
-                          var textEle = r.Descendants(W.t).FirstOrDefault();
-                          if (textEle != null)
-                          {
-                              string text = textEle.Value.ToLower().Trim();
-                              if (referencesRegex.IsMatch(text) && r.Parent.Name == W.p && text.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length <= 3)
-                              {
-                                  return true;
-                              }
-                          }
-                          return false;
-                      })
-                      )
-                      .FirstOrDefault(); // Fetch the first match if available
+                    try
+                    {
+                        var references = root.Descendants(W.p)
+                        .Where(p => p.Ancestors(W.tc).Count() == 0 && p.Descendants(W.r).Count() <= 3 // Ensure there are 3 or fewer runs
+                            && p.Descendants(W.r).Any(r =>
+                            {
+                                var textEle = r.Descendants(W.t).FirstOrDefault();
+                                if (textEle != null)
+                                {
+                                    string text = textEle.Value.ToLower().Trim();
+                                    if (referencesRegex.IsMatch(text) && !text.Contains("literature review") && !text.Contains("literature summary") && r.Parent.Name == W.p && text.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length <= 3)
+                                    {
+                                        return true;
+                                    }
+                                }
+                                return false;
+                            })
+                        )
+                        .FirstOrDefault();
 
-                    var splitReferences = root.Descendants(W.p).Where(p => p.Ancestors(W.tc).Count() == 0 && p.Descendants(W.r).Any(r =>
+
+                        var splitReferences = root.Descendants(W.p).Where(p => p.Ancestors(W.tc).Count() == 0 && p.Descendants(W.r).Any(r =>
                         {
                             var combinedText = string.Concat(p.Descendants(W.r).Descendants(W.t).Select(t => t.Value)).ToLower().Trim();
-                            if (referencesRegex.IsMatch(combinedText) && combinedText.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length <= 3)
+                            if (referencesRegex.IsMatch(combinedText) && !combinedText.Contains("literature review") && !combinedText.Contains("literature summary") && combinedText.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length <= 3)
                             {
                                 return true;
                             }
                             return false;
                         })).FirstOrDefault();
 
-                    if (references != null)
-                    {
-                        var refNext = references.ElementsAfterSelf();
-
-                        if (refNext != null)
+                        if (references != null)
                         {
-                            var refEndNote = refNext.Descendants(W.endnotePr).FirstOrDefault();
-                            var refInMan = references.ElementsAfterSelf().ToList();
+                            var refNext = references.ElementsAfterSelf();
 
-                            if (refEndNote != null)
+                            if (refNext != null)
                             {
-                                var xEndnoteDoc = XDocument.Load(wDoc.MainDocumentPart.EndnotesPart.GetStream());
-                                XElement rootEndnote = xEndnoteDoc.Root;
-                                var precedingEle = rootEndnote.Descendants(W.p).ToList();
-                                foreach (var ele in precedingEle)
-                                {
-                                    ele.RemoveNodes();
-                                }
-                                references.Remove();
-                                using (var stream = wDoc.MainDocumentPart.EndnotesPart.GetStream(FileMode.Create))
-                                {
-                                    xEndnoteDoc.Save(stream);
-                                }
-                                wDoc.MainDocumentPart.PutXDocument();
-                            }
-                            else if (refInMan != null)
-                            {
-                                foreach (var _ref in refInMan)
-                                {
-                                    _ref.Remove();
-                                }
-                                references.Remove();
+                                var refEndNote = refNext.Descendants(W.endnotePr).FirstOrDefault();
+                                var refInMan = references.ElementsAfterSelf().ToList();
 
-                                wDoc.MainDocumentPart.PutXDocument();
+                                if (refEndNote != null)
+                                {
+                                    var xEndnoteDoc = XDocument.Load(wDoc.MainDocumentPart.EndnotesPart.GetStream());
+                                    XElement rootEndnote = xEndnoteDoc.Root;
+                                    var precedingEle = rootEndnote.Descendants(W.p).ToList();
+                                    foreach (var ele in precedingEle)
+                                    {
+                                        ele.RemoveNodes();
+                                    }
+                                    references.Remove();
+                                    using (var stream = wDoc.MainDocumentPart.EndnotesPart.GetStream(FileMode.Create))
+                                    {
+                                        xEndnoteDoc.Save(stream);
+                                    }
+                                    wDoc.MainDocumentPart.PutXDocument();
+                                }
+                                else if (refInMan != null)
+                                {
+                                    foreach (var _ref in refInMan)
+                                    {
+                                        _ref.Remove();
+                                    }
+                                    references.Remove();
+
+                                    wDoc.MainDocumentPart.PutXDocument();
+                                }
                             }
                         }
-                    }
-                    else if (splitReferences != null)
-                    {
-
-                        var refNext = splitReferences.ElementsAfterSelf();
-
-                        if (refNext != null)
+                        else if (splitReferences != null)
                         {
-                            var refEndNote = refNext.Descendants(W.endnotePr).FirstOrDefault();
-                            var refInMan = splitReferences.ElementsAfterSelf().ToList();
-                            if (refEndNote != null)
-                            {
-                                var xEndnoteDoc = XDocument.Load(wDoc.MainDocumentPart.EndnotesPart.GetStream());
-                                XElement rootEndnote = xEndnoteDoc.Root;
-                                var precedingEle = rootEndnote.Descendants(W.p).ToList();
-                                foreach (var ele in precedingEle)
-                                {
-                                    ele.RemoveNodes();
-                                }
-                                splitReferences.Remove();
-                                using (var stream = wDoc.MainDocumentPart.EndnotesPart.GetStream(FileMode.Create))
-                                {
-                                    xEndnoteDoc.Save(stream);
-                                }
-                                wDoc.MainDocumentPart.PutXDocument();
-                            }
-                            else if (refInMan != null)
-                            {
-                                foreach (var _ref in refInMan)
-                                {
-                                    _ref.Remove();
-                                }
-                                splitReferences.Remove();
 
-                                wDoc.MainDocumentPart.PutXDocument();
+                            var refNext = splitReferences.ElementsAfterSelf();
+
+                            if (refNext != null)
+                            {
+                                var refEndNote = refNext.Descendants(W.endnotePr).FirstOrDefault();
+                                var refInMan = splitReferences.ElementsAfterSelf().ToList();
+                                if (refEndNote != null)
+                                {
+                                    var xEndnoteDoc = XDocument.Load(wDoc.MainDocumentPart.EndnotesPart.GetStream());
+                                    XElement rootEndnote = xEndnoteDoc.Root;
+                                    var precedingEle = rootEndnote.Descendants(W.p).ToList();
+                                    foreach (var ele in precedingEle)
+                                    {
+                                        ele.RemoveNodes();
+                                    }
+                                    splitReferences.Remove();
+                                    using (var stream = wDoc.MainDocumentPart.EndnotesPart.GetStream(FileMode.Create))
+                                    {
+                                        xEndnoteDoc.Save(stream);
+                                    }
+                                    wDoc.MainDocumentPart.PutXDocument();
+                                }
+                                else if (refInMan != null)
+                                {
+                                    foreach (var _ref in refInMan)
+                                    {
+                                        _ref.Remove();
+                                    }
+                                    splitReferences.Remove();
+
+                                    wDoc.MainDocumentPart.PutXDocument();
+                                }
                             }
                         }
+                        wDoc.MainDocumentPart.PutXDocument();
                     }
+                    catch (Exception ex) { }
                     #endregion
                     wDoc.Save();
-
-                    #region Updated References
-                    //var allParagraphs = root.Descendants(W.p).ToList(); // Get all paragraphs in the document
-                    //var referenceHead = allParagraphs
-                    //    .Where(p => p.Ancestors(W.tc).Count() == 0 && p.Descendants(W.r).Any(r =>
-                    //    {
-                    //        var textEle = r.Descendants(W.t).FirstOrDefault();
-                    //        if (textEle != null)
-                    //        {
-                    //            string text = textEle.Value.ToLower();
-                    //            if (text == "references" && r.Parent.Name == W.p)
-                    //            {
-                    //                return true;
-                    //            }
-                    //        }
-                    //        return false;
-                    //    }))
-                    //    .FirstOrDefault(); // Fetch the 'references' paragraph
-
-                    //// If 'referenceHead' is found, proceed
-                    //if (referenceHead != null)
-                    //{
-                    //    // Find paragraphs after the 'references' heading
-                    //    var parasAfterRef = allParagraphs.SkipWhile(p => p != referenceHead).Skip(1).ToList();
-                    //    bool secPresentAfterRef = false;
-                    //    int secStartIndex = -1;
-
-                    //    // Iterate through paragraphs after 'referenceHead'
-                    //    for (int i = 0; i < parasAfterRef.Count; i++)
-                    //    {
-                    //        var para = parasAfterRef[i];
-                    //        // Get the text content of the paragraph
-                    //        var text = string.Join(" ", para.Descendants(W.t).Select(t => t.Value)).Trim();
-
-                    //        // Check if the paragraph has 3 or fewer words
-                    //        if (text.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length <= 3)
-                    //        {
-                    //            secPresentAfterRef = true;
-                    //            secStartIndex = i;
-                    //            break;
-                    //        }
-                    //    }
-
-                    //    if (secPresentAfterRef)
-                    //    {
-                    //        // Capture all paragraphs from 'secStartIndex' to the last paragraph
-                    //        var secAfterRef = parasAfterRef.Skip(secStartIndex).ToList();
-
-                    //        // Insert these paragraphs before the 'referenceHead'
-                    //        foreach (var sec in secAfterRef)
-                    //        {
-                    //            referenceHead.AddBeforeSelf(new XElement(sec));
-                    //        }
-
-                    //        // Optionally, remove the paragraphs after insertion if required
-                    //        // This will remove the paragraphs from their original location
-                    //        foreach (var sec in secAfterRef)
-                    //        {
-                    //            sec.Remove();
-                    //        }
-
-                    //        // Save changes to the document
-                    //        wDoc.MainDocumentPart.PutXDocument();
-                    //    }
-                    //}
-
-                    #endregion
                 }
             }
         }
+        #endregion
+
+        #region RemoveFootnotesEndnotes
+        public void RemoveFootnotesEndnotes(string filePath, bool isTrue)
+        {
+            using (WordprocessingDocument doc = WordprocessingDocument.Open(filePath, isTrue))
+            {
+                try
+                {
+                    foreach (var footnoteReference in doc.MainDocumentPart.Document.Descendants<FootnoteReference>().ToList())
+                    {
+                        footnoteReference.Remove();
+                    }
+
+                    foreach (var endnoteReference in doc.MainDocumentPart.Document.Descendants<EndnoteReference>().ToList())
+                    {
+                        endnoteReference.Remove();
+                    }
+                    doc.MainDocumentPart.Document.Save();
+                }
+                catch (Exception ex) { }
+            }
+        }
+        #endregion
 
         #region Remove Blank Pages
-        //public void RemoveEmptyParagraphs(string newPath, bool isTrue)
-        //{
-        //    using (WordprocessingDocument wDoc = WordprocessingDocument.Open(newPath, isTrue))
-        //    {
-        //        XDocument root = wDoc.MainDocumentPart.GetXDocument();
-        //        List<XElement> docxList = root.Descendants(W.p).ToList();
-
-        //        if (docxList != null)
-        //        {
-        //            var emptyParagraphs = docxList.Where(p => string.IsNullOrWhiteSpace(p.Value)).ToList();
-
-        //            foreach (var para in emptyParagraphs)
-        //            {
-        //                para.Remove();
-        //            }
-
-        //        }
-        //        wDoc.MainDocumentPart.PutXDocument();
-        //        wDoc.Save();
-        //    }
-        //}
         public void RemoveEmptyParagraphs(string newPath, bool isTrue)
         {
             using (WordprocessingDocument wDoc = WordprocessingDocument.Open(newPath, isTrue))
             {
-                // Get the XML representation of the document's main part
                 XDocument root = wDoc.MainDocumentPart.GetXDocument();
-
-                // Find all paragraphs in the document
                 List<XElement> docxList = root.Descendants(W.p).ToList();
 
-                // If there are paragraphs in the document
                 if (docxList != null && docxList.Any())
                 {
-                    // Find the first non-empty paragraph
-                    int firstNonEmptyIndex = docxList.FindIndex(p => !string.IsNullOrWhiteSpace(p.Value));
+                    int firstNonEmptyIndex = docxList.FindIndex(p => !IsParagraphEmptyOrPageBreak(p));
 
-                    // Find the last non-empty paragraph
-                    int lastNonEmptyIndex = docxList.FindLastIndex(p => !string.IsNullOrWhiteSpace(p.Value));
+                    int lastNonEmptyIndex = docxList.FindLastIndex(p => !IsParagraphEmptyOrPageBreak(p));
 
-                    // Remove starting empty paragraphs (before the first non-empty one)
                     if (firstNonEmptyIndex > 0)
                     {
                         for (int i = 0; i < firstNonEmptyIndex; i++)
                         {
-                            if (string.IsNullOrWhiteSpace(docxList[i].Value))
+                            if (IsParagraphEmptyOrPageBreak(docxList[i]))
                             {
                                 docxList[i].Remove();
                             }
                         }
                     }
 
-                    // Remove ending empty paragraphs (after the last non-empty one)
                     if (lastNonEmptyIndex < docxList.Count - 1)
                     {
                         for (int i = docxList.Count - 1; i > lastNonEmptyIndex; i--)
                         {
-                            if (string.IsNullOrWhiteSpace(docxList[i].Value))
+                            if (IsParagraphEmptyOrPageBreak(docxList[i]))
                             {
                                 docxList[i].Remove();
                             }
                         }
                     }
                 }
-
-                // Save the updated document
                 wDoc.MainDocumentPart.PutXDocument();
                 wDoc.Save();
             }
         }
+        private bool IsParagraphEmptyOrPageBreak(XElement paragraph)
+        {
+            bool hasTextContent = paragraph.Descendants(W.t).Any(t => !string.IsNullOrWhiteSpace(t.Value));
+            bool hasPageBreak = paragraph.Descendants(W.br)
+                                         .Any(br => (string)br.Attribute(W.type) == "page");
+            bool hasSectionBreak = paragraph.Descendants(W.sectPr).Any();
+            return !hasTextContent && (hasPageBreak || hasSectionBreak);
+        }
 
+        //private bool IsParagraphEmptyOrPageBreak(XElement paragraph)
+        //{
+        //    return string.IsNullOrWhiteSpace(paragraph.Value) ||
+        //           paragraph.Descendants(W.br).Any(br => (string)br.Attribute(W.type) == "page");
+        //}
         #endregion
+
+        public void RemoveSectionBreaks(string filePath)
+        {
+            using (WordprocessingDocument wordDoc = WordprocessingDocument.Open(filePath, true))
+            {
+                MainDocumentPart mainPart = wordDoc.MainDocumentPart;
+
+                var paragraphsWithSectionBreaks = mainPart.Document.Descendants<DocumentFormat.OpenXml.Drawing.Paragraph>()
+                                                    .Where(p => p.Descendants<SectionProperties>().Any())
+                                                    .ToList();
+                foreach (var paragraph in paragraphsWithSectionBreaks)
+                {
+                    var sectionProperties = paragraph.Descendants<SectionProperties>().FirstOrDefault();
+                    if (sectionProperties != null)
+                    {
+                        sectionProperties.Remove();
+                    }
+                }
+                var lastSectionProperties = mainPart.Document.Body.Descendants<SectionProperties>().FirstOrDefault();
+                if (lastSectionProperties != null)
+                {
+                    lastSectionProperties.Remove();
+                }
+                mainPart.Document.Save();
+            }
+        }
     }
 }
 
