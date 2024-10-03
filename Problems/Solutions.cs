@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace Problems
@@ -15,7 +16,7 @@ namespace Problems
                 var temp = i + 1;
                 while (temp <= nums.Length - 1)
                 {
-                    if(nums[i] + nums[temp] == target)
+                    if (nums[i] + nums[temp] == target)
                     {
                         op.Add(i);
                         op.Add(i + 1);
@@ -71,6 +72,72 @@ namespace Problems
                     isPalindrome = false;
             }
             return isPalindrome;
+        }
+        public int RomanToInt(string s)
+        {
+            int a = 0;
+            Dictionary<char, int> romanNumbers = new Dictionary<char, int>
+            {
+                {'I', 1},
+                {'V', 5},
+                {'X', 10},
+                {'L', 50},
+                {'C', 100},
+                {'D', 500},
+                {'M', 1000}
+            };
+            for (int i = 0; i<s.Length; i++)
+            {
+                if (i + 1 < s.Length && romanNumbers[s[i]] < romanNumbers[s[i + 1]])
+                {
+                    a -= romanNumbers[s[i]];
+                }
+                else
+                {
+                    a += romanNumbers[s[i]];
+                }
+            }
+            return a;
+        }
+        public string LongestCommonPrefix(string[] strs)
+        {
+            string a = "";
+            List<string> inp = new List<string>();
+            inp.AddRange(strs);
+            int stringIndex = 0;
+            int charIndex = 0;
+            while (stringIndex < inp.Count)
+            {
+                string currentString = inp[stringIndex];
+                char letter = currentString[charIndex];
+                charIndex++;
+
+                if (charIndex >= currentString.Length)
+                {
+                    stringIndex++;
+                    charIndex = 0;
+                }
+            }
+            return a;
+        }
+        public bool CheckIfPangram(string sentence)
+        {
+            if (sentence == null || sentence.Length == 0)
+            {
+                return false;
+            }
+            int[] arr = new int[26];
+            for (int i = 0; i < sentence.Length; i++)
+            {
+                arr[sentence[i] - 97] += 1;
+            }
+            for (int j = 0; j < arr.Length; j++)
+            {
+                if (arr[j] == 0)
+                    return false;
+                
+            }
+            return true;
         }
     }
 }
