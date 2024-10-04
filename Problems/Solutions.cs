@@ -86,7 +86,7 @@ namespace Problems
                 {'D', 500},
                 {'M', 1000}
             };
-            for (int i = 0; i<s.Length; i++)
+            for (int i = 0; i < s.Length; i++)
             {
                 if (i + 1 < s.Length && romanNumbers[s[i]] < romanNumbers[s[i + 1]])
                 {
@@ -101,24 +101,37 @@ namespace Problems
         }
         public string LongestCommonPrefix(string[] strs)
         {
-            string a = "";
-            List<string> inp = new List<string>();
-            inp.AddRange(strs);
-            int stringIndex = 0;
-            int charIndex = 0;
-            while (stringIndex < inp.Count)
+            try
             {
-                string currentString = inp[stringIndex];
-                char letter = currentString[charIndex];
-                charIndex++;
-
-                if (charIndex >= currentString.Length)
+                if (strs == null || strs.Length == 0)
                 {
-                    stringIndex++;
-                    charIndex = 0;
+                    return "";
                 }
+                int minLength = strs.Min(s => s.Length);
+                StringBuilder a = new StringBuilder();
+                for (int i = 0; i < minLength; i++)
+                {
+                    char firstStrChar = strs[0][i];
+                    bool allMatch = true;
+                    for (int j = 1; j < strs.Length; j++)
+                    {
+                        if (strs[j][i] != firstStrChar)
+                        {
+                            allMatch = false;
+                            break;
+                        }
+                    }
+                    if (allMatch)
+                        a.Append(firstStrChar);
+                    else
+                        break;
+                }
+                return a.ToString();
             }
-            return a;
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
         }
         public bool CheckIfPangram(string sentence)
         {
@@ -129,13 +142,13 @@ namespace Problems
             int[] arr = new int[26];
             for (int i = 0; i < sentence.Length; i++)
             {
-                arr[sentence[i] - 97] += 1;
+                arr[sentence[i] - 'a'] += 1;
             }
             for (int j = 0; j < arr.Length; j++)
             {
                 if (arr[j] == 0)
                     return false;
-                
+
             }
             return true;
         }
