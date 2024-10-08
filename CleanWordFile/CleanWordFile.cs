@@ -10,6 +10,10 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using Paragraph = DocumentFormat.OpenXml.Wordprocessing.Paragraph;
+using ParagraphProperties = DocumentFormat.OpenXml.Wordprocessing.ParagraphProperties;
+using Run = DocumentFormat.OpenXml.Wordprocessing.Run;
+using Text = DocumentFormat.OpenXml.Wordprocessing.Text;
 
 namespace CleanWordFile
 {
@@ -303,22 +307,66 @@ namespace CleanWordFile
         #region RemoveFootnotesEndnotes
         public void RemoveFootnotesEndnotes(string filePath, bool isTrue)
         {
+            List<XElement> footnoteEndnote = new List<XElement>();
             using (WordprocessingDocument doc = WordprocessingDocument.Open(filePath, isTrue))
             {
                 try
                 {
+                    var body = doc.MainDocumentPart.Document.Body;
+                    int counter = 1;
+
                     foreach (var footnoteReference in doc.MainDocumentPart.Document.Descendants<FootnoteReference>().ToList())
                     {
+                        var footnote = doc.MainDocumentPart.FootnotesPart.Footnotes.Elements<Footnote>()
+                                           .FirstOrDefault(fn => fn.Id == footnoteReference.Id);
+                        if (footnote != null)
+                        {
+                            footnoteEndnote.Add(XElement.Parse(footnote.OuterXml));
+                        }
                         footnoteReference.Remove();
                     }
 
                     foreach (var endnoteReference in doc.MainDocumentPart.Document.Descendants<EndnoteReference>().ToList())
                     {
+                        var endnote = doc.MainDocumentPart.EndnotesPart.Endnotes.Elements<Endnote>()
+                                         .FirstOrDefault(en => en.Id == endnoteReference.Id);
+                        if (endnote != null)
+                        {
+                            footnoteEndnote.Add(XElement.Parse(endnote.OuterXml));
+                        }
                         endnoteReference.Remove();
+                    }
+
+                    var paraHeading = new Paragraph(new Run(new Text("Footnote/Endnote")));
+                    var headingProperties = new ParagraphProperties(new ParagraphStyleId() { Val = "Heading1" });
+                    paraHeading.InsertAt(headingProperties, 0);
+                    body.Append(paraHeading);
+
+                    foreach (var item in footnoteEndnote)
+                    {
+                        string textContent = string.Empty;
+                        foreach (var textElement in item.Descendants(W.t))
+                        {
+                            if (!string.IsNullOrEmpty(textElement.Value))
+                            {
+                                textContent += textElement.Value.Trim() + " ";
+                            }
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(textContent))
+                        {
+                            var numberedParagraph = new Paragraph(new Run(new Text(counter.ToString() + ". " + textContent.Trim())));
+                            var numberingProperties = new NumberingProperties(new NumberingLevelReference() { Val = 0 });
+                            numberedParagraph.PrependChild(numberingProperties);
+                            body.Append(numberedParagraph);
+                            counter++;
+                            //var newParagraph = new Paragraph(new Run(new Text(textContent.Trim())));
+                        }
                     }
                     doc.MainDocumentPart.Document.Save();
                 }
-                catch (Exception ex) { }
+                catch (Exception ex)
+                {}
             }
         }
         #endregion
