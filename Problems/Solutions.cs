@@ -19,7 +19,7 @@ namespace Problems
                     if (nums[i] + nums[temp] == target)
                     {
                         op.Add(i);
-                        op.Add(i + 1);
+                        op.Add(temp);
                         return op.ToArray();
                     }
                     else
