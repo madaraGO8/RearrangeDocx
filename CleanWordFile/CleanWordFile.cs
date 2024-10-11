@@ -226,26 +226,26 @@ namespace CleanWordFile
 
                             if (refNext != null)
                             {
-                                var refEndNote = refNext.Descendants(W.endnotePr).FirstOrDefault();
+                                //var refEndNote = refNext.Descendants(W.endnotePr).FirstOrDefault();
                                 var refInMan = references.ElementsAfterSelf().ToList();
 
-                                if (refEndNote != null)
-                                {
-                                    var xEndnoteDoc = XDocument.Load(wDoc.MainDocumentPart.EndnotesPart.GetStream());
-                                    XElement rootEndnote = xEndnoteDoc.Root;
-                                    var precedingEle = rootEndnote.Descendants(W.p).ToList();
-                                    foreach (var ele in precedingEle)
-                                    {
-                                        ele.RemoveNodes();
-                                    }
-                                    references.Remove();
-                                    using (var stream = wDoc.MainDocumentPart.EndnotesPart.GetStream(FileMode.Create))
-                                    {
-                                        xEndnoteDoc.Save(stream);
-                                    }
-                                    wDoc.MainDocumentPart.PutXDocument();
-                                }
-                                else if (refInMan != null)
+                                //if (refEndNote != null)
+                                //{
+                                //    var xEndnoteDoc = XDocument.Load(wDoc.MainDocumentPart.EndnotesPart.GetStream());
+                                //    XElement rootEndnote = xEndnoteDoc.Root;
+                                //    var precedingEle = rootEndnote.Descendants(W.p).ToList();
+                                //    foreach (var ele in precedingEle)
+                                //    {
+                                //        ele.RemoveNodes();
+                                //    }
+                                //    references.Remove();
+                                //    using (var stream = wDoc.MainDocumentPart.EndnotesPart.GetStream(FileMode.Create))
+                                //    {
+                                //        xEndnoteDoc.Save(stream);
+                                //    }
+                                //    wDoc.MainDocumentPart.PutXDocument();
+                                //}
+                                if (refInMan != null)
                                 {
                                     foreach (var _ref in refInMan)
                                     {
@@ -336,11 +336,13 @@ namespace CleanWordFile
                         }
                         endnoteReference.Remove();
                     }
-
-                    var paraHeading = new Paragraph(new Run(new Text("Footnote/Endnote")));
-                    var headingProperties = new ParagraphProperties(new ParagraphStyleId() { Val = "Heading1" });
-                    paraHeading.InsertAt(headingProperties, 0);
-                    body.Append(paraHeading);
+                    if (footnoteEndnote.Count() > 0)
+                    {
+                        var paraHeading = new Paragraph(new Run(new Text("Footnote/Endnote")));
+                        var headingProperties = new ParagraphProperties(new ParagraphStyleId() { Val = "Heading1" });
+                        paraHeading.InsertAt(headingProperties, 0);
+                        body.Append(paraHeading);
+                    }
 
                     foreach (var item in footnoteEndnote)
                     {
@@ -366,7 +368,7 @@ namespace CleanWordFile
                     doc.MainDocumentPart.Document.Save();
                 }
                 catch (Exception ex)
-                {}
+                { }
             }
         }
         #endregion
@@ -427,6 +429,7 @@ namespace CleanWordFile
         //}
         #endregion
 
+        #region Remove Section Breaks
         public void RemoveSectionBreaks(string filePath)
         {
             using (WordprocessingDocument wordDoc = WordprocessingDocument.Open(filePath, true))
@@ -452,6 +455,7 @@ namespace CleanWordFile
                 mainPart.Document.Save();
             }
         }
+        #endregion
     }
 }
 
