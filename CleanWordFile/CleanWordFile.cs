@@ -19,8 +19,9 @@ namespace CleanWordFile
 {
     class CleanWordFile
     {
+        List<XElement> footnoteEndnote = new List<XElement>();
         #region CleanDocx
-        public void CleanDocx(string path, string newPath, bool isTrue)
+        public List<XElement> CleanDocx(string path, string newPath, bool isTrue)
         {
             string autoStyleConfig = @"C:\Users\Prathamesh.sulakhe\Desktop\Folders\Packages\02-09-2024\10Packages\New folder\AutostyleConfig.xml";
             string abc = File.ReadAllText(autoStyleConfig);
@@ -51,6 +52,31 @@ namespace CleanWordFile
                 {
                     var xDoc = wDoc.MainDocumentPart.GetXDocument();
                     XElement root = xDoc.Root;
+
+                    #region CheckFootnotesEndnotes
+                    var body = wDoc.MainDocumentPart.Document.Body;
+                    foreach (var footnoteReference in wDoc.MainDocumentPart.Document.Descendants<FootnoteReference>().ToList())
+                    {
+                        var footnote = wDoc.MainDocumentPart.FootnotesPart.Footnotes.Elements<Footnote>()
+                                           .FirstOrDefault(fn => fn.Id == footnoteReference.Id);
+                        if (footnote != null)
+                        {
+                            footnoteEndnote.Add(XElement.Parse(footnote.OuterXml));
+                        }
+                        footnoteReference.Remove();
+                    }
+
+                    foreach (var endnoteReference in wDoc.MainDocumentPart.Document.Descendants<EndnoteReference>().ToList())
+                    {
+                        var endnote = wDoc.MainDocumentPart.EndnotesPart.Endnotes.Elements<Endnote>()
+                                         .FirstOrDefault(en => en.Id == endnoteReference.Id);
+                        if (endnote != null)
+                        {
+                            footnoteEndnote.Add(XElement.Parse(endnote.OuterXml));
+                        }
+                        endnoteReference.Remove();
+                    }
+                    #endregion
 
                     #region DocxListForFrontMatter
                     //List<string> docxList = root.Descendants(W.p).Descendants(W.r).Descendants(W.t).Select(t => t.Value.ToLower().Trim()).Take(50).ToList();
@@ -158,34 +184,34 @@ namespace CleanWordFile
                     #endregion
 
                     #region DocxListForBackMatter
-                    string firstMatchingHeading = string.Empty;
-                    int firstMatchingIndex = -1;
+                    //string firstMatchingHeading = string.Empty;
+                    //int firstMatchingIndex = -1;
 
-                    for (int i = 0; i <= docxList.Count - 1; i++)
-                    {
-                        foreach (var heading in backMatterList)
-                        {
-                            if (docxList[i].Value.ToLower().StartsWith(heading) && docxList[i].Value.ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length <= 3)  // Find the first match
-                            {
-                                firstMatchingHeading = heading;
-                                firstMatchingIndex = i;
-                            }
-                        }
-                    }
-                    if (firstMatchingIndex != -1)
-                    {
-                        for (int i = firstMatchingIndex; i < docxList.Count; i++)
-                        {
-                            docxList[i].Remove();
-                        }
-                    }
-                    wDoc.MainDocumentPart.PutXDocument();
+                    //for (int i = 0; i <= docxList.Count - 1; i++)
+                    //{
+                    //    foreach (var heading in backMatterList)
+                    //    {
+                    //        if (docxList[i].Value.ToLower().StartsWith(heading) && docxList[i].Value.ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length <= 3)  // Find the first match
+                    //        {
+                    //            firstMatchingHeading = heading;
+                    //            firstMatchingIndex = i;
+                    //        }
+                    //    }
+                    //}
+                    //if (firstMatchingIndex != -1)
+                    //{
+                    //    for (int i = firstMatchingIndex; i < docxList.Count; i++)
+                    //    {
+                    //        docxList[i].Remove();
+                    //    }
+                    //}
+                    //wDoc.MainDocumentPart.PutXDocument();
                     #endregion
 
                     #region ReloadMS2
-                    xDoc = wDoc.MainDocumentPart.GetXDocument();
-                    root = xDoc.Root;
-                    docxList = root.Descendants(W.p).ToList();
+                    //xDoc = wDoc.MainDocumentPart.GetXDocument();
+                    //root = xDoc.Root;
+                    //docxList = root.Descendants(W.p).ToList();
                     #endregion
 
                     #region References
@@ -301,13 +327,13 @@ namespace CleanWordFile
                     wDoc.Save();
                 }
             }
+            return footnoteEndnote;
         }
         #endregion
 
         #region RemoveFootnotesEndnotes
-        public void RemoveFootnotesEndnotes(string filePath, bool isTrue)
+        public void RemoveFootnotesEndnotes(string filePath, List<XElement> footNoteEndNote, bool isTrue)
         {
-            List<XElement> footnoteEndnote = new List<XElement>();
             using (WordprocessingDocument doc = WordprocessingDocument.Open(filePath, isTrue))
             {
                 try
@@ -321,7 +347,8 @@ namespace CleanWordFile
                                            .FirstOrDefault(fn => fn.Id == footnoteReference.Id);
                         if (footnote != null)
                         {
-                            footnoteEndnote.Add(XElement.Parse(footnote.OuterXml));
+                            //footnoteEndnote.Add(XElement.Parse(footnote.OuterXml));
+                            footNoteEndNote.Add(XElement.Parse(footnote.OuterXml));
                         }
                         footnoteReference.Remove();
                     }
@@ -332,11 +359,12 @@ namespace CleanWordFile
                                          .FirstOrDefault(en => en.Id == endnoteReference.Id);
                         if (endnote != null)
                         {
-                            footnoteEndnote.Add(XElement.Parse(endnote.OuterXml));
+                            //footnoteEndnote.Add(XElement.Parse(endnote.OuterXml));
+                            footNoteEndNote.Add(XElement.Parse(endnote.OuterXml));
                         }
                         endnoteReference.Remove();
                     }
-                    if (footnoteEndnote.Count() > 0)
+                    if (footNoteEndNote.Count() > 0)
                     {
                         var paraHeading = new Paragraph(new Run(new Text("Footnote/Endnote")));
                         var headingProperties = new ParagraphProperties(new ParagraphStyleId() { Val = "Heading1" });
@@ -344,7 +372,7 @@ namespace CleanWordFile
                         body.Append(paraHeading);
                     }
 
-                    foreach (var item in footnoteEndnote)
+                    foreach (var item in footNoteEndNote)
                     {
                         string textContent = string.Empty;
                         foreach (var textElement in item.Descendants(W.t))

@@ -20,7 +20,7 @@ namespace CleanWordFile
             string abc = File.ReadAllText(autoStyleConfig);
             XElement autoStyleContent = XElement.Parse(abc);
 
-            List<string> backMatterList = new List<string> { "appendix", "notes", "note", "endnotes", "endnote", "footnotes", "footnote" };
+            List<string> backMatterList = new List<string> { "appendix", "notes", "note", "endnotes", "endnote", "footnotes", "footnote", "figure" };
 
             List<string> suppHead = autoStyleContent.Descendants("component").Where(a => a.Attribute("type") != null && (a.Attribute("type").Value == "Referencing")).Descendants("manuscript-headings").
                 Where(a => a.Attribute("type").Value == "Supplementaryhead").Descendants("term").Select(term => term.Value.ToLower().Trim()).ToList();
@@ -68,14 +68,37 @@ namespace CleanWordFile
 
                         foreach (var para in nextParas)
                         {
-                            // Check if the length of the paragraph is <= 3
-                            var text = string.Concat(para.Paragraph.Descendants(W.t).Select(t => t.Value)).Trim();
-                            var words = text.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                            if (words.Length > 0 && words.Length <= 4 && backMatterList.Any(item => text.Equals(item, StringComparison.OrdinalIgnoreCase)))
+                            bool figureAfterRef = para.Paragraph.Descendants(W.drawing).Any();
+                            bool headingAfterRef = para.Paragraph.Descendants(W.r).Any(run => run.Descendants(W.b) != null);
+                            if (figureAfterRef)
                             {
-                                stopIndex = para.Index;  // Captured the index where paragraph length <= 3
+                                stopIndex = para.Index;
                                 break;
                             }
+                            else
+                            {
+                                var text = string.Concat(para.Paragraph.Descendants(W.t).Select(t => t.Value)).Trim();
+                                var words = text.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                                if (words.Length > 0 && words.Length <= 4)
+                                {
+                                    if (backMatterList.Any(item => text.Equals(item, StringComparison.OrdinalIgnoreCase)))
+                                    {
+                                        stopIndex = para.Index;
+                                        break;
+                                    }
+                                    else if (tblFig.IsMatch(text))
+                                    {
+                                        stopIndex = para.Index;
+                                        break;
+                                    }
+                                    else if (headingAfterRef)
+                                    {
+                                        stopIndex = para.Index;
+                                        break;
+                                    }
+                                }
+                            }
+                            
                         }
                         if (stopIndex != -1)
                         {
