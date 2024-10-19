@@ -31,6 +31,7 @@ namespace CleanWordFile
             AppendNotesToBody(targetPath, isEditable);
             RemoveSectionBreaks(targetPath);
             RemoveEmptyParagraphs(targetPath, isEditable);
+            RecheckBody(targetPath, isEditable);
         }
         #endregion
 
@@ -226,24 +227,8 @@ namespace CleanWordFile
                             var refNext = splitReferences.ElementsAfterSelf();
                             if (refNext != null)
                             {
-                                var refEndNote = refNext.Descendants(W.endnotePr).FirstOrDefault();
                                 var refInMan = splitReferences.ElementsAfterSelf().ToList();
-                                if (refEndNote != null)
-                                {
-                                    var xEndnoteDoc = XDocument.Load(wDoc.MainDocumentPart.EndnotesPart.GetStream());
-                                    XElement rootEndnote = xEndnoteDoc.Root;
-                                    var precedingEle = rootEndnote.Descendants(W.p).ToList();
-                                    foreach (var ele in precedingEle)
-                                    {
-                                        ele.RemoveNodes();
-                                    }
-                                    splitReferences.Remove();
-                                    using (var stream = wDoc.MainDocumentPart.EndnotesPart.GetStream(FileMode.Create))
-                                    {
-                                        xEndnoteDoc.Save(stream);
-                                    }
-                                }
-                                else if (refInMan != null)
+                                if (refInMan != null)
                                 {
                                     foreach (var _ref in refInMan)
                                     {
@@ -455,6 +440,185 @@ namespace CleanWordFile
             }
             }
             catch (Exception ex) { }
+        }
+        #endregion
+
+        #region Recheck - Body.docx
+        private void RecheckBody(string path, bool isEditable)
+        {
+            List<string> backMatterList = new List<string> { "appendix", "notes", "note", "endnotes", "endnote", "footnotes", "footnote", "figure" };
+
+            string autoStyleConfig = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AutostyleConfig.xml");
+
+            string abc = File.ReadAllText(autoStyleConfig);
+
+            XElement autoStyleContent = XElement.Parse(abc);
+
+            List<string> suppHead = autoStyleContent.Descendants("component").Where(a => a.Attribute("type") != null && (a.Attribute("type").Value == "Referencing")).Descendants("manuscript-headings").
+                Where(a => a.Attribute("type").Value == "Supplementaryhead").Descendants("term").Select(term => term.Value.ToLower().Trim()).ToList();
+
+            backMatterList.AddRange(suppHead);
+
+            if (File.Exists(path))
+            {
+                using (WordprocessingDocument wDoc = WordprocessingDocument.Open(path, isEditable))
+                {
+                    var xDoc = wDoc.MainDocumentPart.GetXDocument();
+                    XElement root = xDoc.Root;
+                    List<XElement> docxList = root.Descendants(W.p).ToList();
+
+                    //Regex referencesRegex = new Regex(@"\breference\b|\breferences\b|\bfurther reading\b|\bliterature\b|^\bliterature cited\b$|^\bliterature\b|^\bworks cited\b$|^\breferences cited\b$|^\breferencias\b$|^\bbibliography\b$|\bbibliography list\b");
+                    Regex referencesRegex = new Regex(@"^\breference\b|^\breferences\b|^\bfurther reading\b|^\bliterature\b|^\bliterature cited\b$|^\bliterature\b|^\bworks cited\b$|^\breferences cited\b$|^\breferencias\b$|^\bbibliography\b$|^\bbibliography list\b", RegexOptions.IgnoreCase);
+                    Regex tblFig = new Regex(@"^\bTable\b|^\bTables\b|\bFigures\b|\bFigure\b", RegexOptions.IgnoreCase);
+
+                    var referencesWithIndex = root.Descendants(W.p)
+                        .Select((p, index) => new { Paragraph = p, Index = index })
+                        .Where(pWithIndex => pWithIndex.Paragraph.Ancestors(W.tc).Count() == 0 &&
+                        pWithIndex.Paragraph.Descendants(W.r).Any(r =>
+                        {
+                            var textEle = r.Descendants(W.t).FirstOrDefault();
+                            if (textEle != null)
+                            {
+                                string text = textEle.Value.ToLower();
+                                if (referencesRegex.IsMatch(text) && r.Parent.Name == W.p)
+                                {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        })).FirstOrDefault();
+
+                    var splitReferencesWithIndex = root.Descendants(W.p).Select((p, index) => new { Paragraph = p, Index = index })
+                        .Where(pWithIndex =>
+                        {
+                            var paragraph = pWithIndex.Paragraph;
+                            if (paragraph.Ancestors(W.tc).Any()) return false;
+                            var combinedText = string.Concat(paragraph.Descendants(W.r).Descendants(W.t).Select(t => t.Value)).ToLower().Trim();
+                            return referencesRegex.IsMatch(combinedText) &&
+                                    !combinedText.Contains("literature review") &&
+                                    !combinedText.Contains("literature summary") &&
+                                    combinedText.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length <= 3;
+                        })
+                         .FirstOrDefault();
+
+                    if (referencesWithIndex != null)
+                    {
+                        var referencesElement = referencesWithIndex.Paragraph;
+                        var referencesIndex = referencesWithIndex.Index;
+
+                        var nextParas = docxList.Skip(referencesIndex + 1).Select((p, index) => new { Paragraph = p, Index = index + referencesIndex + 1 });
+                        var stopIndex = -1;
+
+                        foreach (var para in nextParas)
+                        {
+                            bool figureAfterRef = para.Paragraph.Descendants(W.drawing).Any();
+                            bool headingAfterRef = para.Paragraph.Descendants(W.r).Any(run => run.Descendants(W.b) != null);
+                            if (figureAfterRef)
+                            {
+                                stopIndex = para.Index;
+                                break;
+                            }
+                            else
+                            {
+                                var text = string.Concat(para.Paragraph.Descendants(W.t).Select(t => t.Value)).Trim();
+                                var words = text.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                                if (words.Length > 0 && words.Length <= 4)
+                                {
+                                    if (backMatterList.Any(item => text.Equals(item, StringComparison.OrdinalIgnoreCase)))
+                                    {
+                                        stopIndex = para.Index;
+                                        break;
+                                    }
+                                    else if (tblFig.IsMatch(text))
+                                    {
+                                        stopIndex = para.Index;
+                                        break;
+                                    }
+                                    else if (headingAfterRef)
+                                    {
+                                        stopIndex = para.Index;
+                                        break;
+                                    }
+                                }
+                            }
+
+                        }
+                        if (stopIndex != -1)
+                        {
+                            //Fetching the paragraphs between References index and stopIndex - 1
+                            var referencesData = docxList
+                                .Skip(referencesIndex)
+                                .Take(stopIndex - referencesIndex)
+                                .ToList();
+
+                            foreach (var para in referencesData)
+                            {
+                                para.Remove();
+                            }
+                            wDoc.MainDocumentPart.PutXDocument();
+                        }
+                    }
+                    else if (splitReferencesWithIndex != null)
+                    {
+                        var referencesElement = splitReferencesWithIndex.Paragraph;
+                        var referencesIndex = splitReferencesWithIndex.Index;
+
+                        var nextParas = docxList.Skip(referencesIndex + 1).Select((p, index) => new { Paragraph = p, Index = index + referencesIndex + 1 });
+                        var stopIndex = -1;
+
+                        foreach (var para in nextParas)
+                        {
+                            bool figureAfterRef = para.Paragraph.Descendants(W.drawing).Any();
+                            bool headingAfterRef = para.Paragraph.Descendants(W.r).Any(run => run.Descendants(W.b) != null);
+                            if (figureAfterRef)
+                            {
+                                stopIndex = para.Index;
+                                break;
+                            }
+                            else
+                            {
+                                var text = string.Concat(para.Paragraph.Descendants(W.t).Select(t => t.Value)).Trim();
+                                var words = text.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                                if (words.Length > 0 && words.Length <= 4)
+                                {
+                                    if (backMatterList.Any(item => text.Equals(item, StringComparison.OrdinalIgnoreCase)))
+                                    {
+                                        stopIndex = para.Index;
+                                        break;
+                                    }
+                                    else if (tblFig.IsMatch(text))
+                                    {
+                                        stopIndex = para.Index;
+                                        break;
+                                    }
+                                    else if (headingAfterRef)
+                                    {
+                                        stopIndex = para.Index;
+                                        break;
+                                    }
+                                }
+                            }
+
+                        }
+                        if (stopIndex != -1)
+                        {
+                            //Fetching the paragraphs between References index and stopIndex - 1
+                            var referencesData = docxList
+                                .Skip(referencesIndex)
+                                .Take(stopIndex - referencesIndex)
+                                .ToList();
+
+                            foreach (var para in referencesData)
+                            {
+                                para.Remove();
+                            }
+                            wDoc.MainDocumentPart.PutXDocument();
+                        }
+                    }
+                    wDoc.MainDocumentPart.PutXDocument();
+                    wDoc.Save();
+                }
+            }
         }
         #endregion
     }

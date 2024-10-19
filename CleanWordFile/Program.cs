@@ -10,7 +10,7 @@ namespace CleanWordFile
 {
     class Program
     {
-        public static string path = @"C:\Users\Prathamesh.sulakhe\Desktop\Folders\New folder\PreEditingDocx\FiguresBelowReferencesOutput.docx";
+        public static string path = @"C:\Users\Prathamesh.sulakhe\Desktop\Folders\New folder\PreEditingDocx\CTAS_2024_2405982_2024-09-15_16-39-13.docx";
         public static string newPath = Path.GetDirectoryName(path) + @"\Body.docx";
         public static bool isPresent = true;
         static void Main(string[] args)

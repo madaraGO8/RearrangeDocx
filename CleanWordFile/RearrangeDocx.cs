@@ -15,8 +15,8 @@ namespace CleanWordFile
     {
         public void RearrangeEle(string path, bool isTrue)
         {
-            string autoStyleConfig = @"C:\Users\Prathamesh.sulakhe\Desktop\Folders\Packages\02-09-2024\10Packages\New folder\AutostyleConfig.xml";
-            //string autoStyleConfig = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AutostyleConfig.xml");
+            //string autoStyleConfig = @"C:\Users\Prathamesh.sulakhe\Desktop\Folders\Packages\02-09-2024\10Packages\New folder\AutostyleConfig.xml";
+            string autoStyleConfig = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AutostyleConfig.xml");
             string abc = File.ReadAllText(autoStyleConfig);
             XElement autoStyleContent = XElement.Parse(abc);
 
