@@ -1,4 +1,4 @@
-﻿using DocumentFormat.OpenXml.Drawing;
+﻿using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using OpenXmlPowerTools;
@@ -9,6 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Xml;
 using System.Xml.Linq;
 using Paragraph = DocumentFormat.OpenXml.Wordprocessing.Paragraph;
 using ParagraphProperties = DocumentFormat.OpenXml.Wordprocessing.ParagraphProperties;
@@ -20,10 +21,24 @@ namespace CleanWordFile
     class CleanWordFile
     {
         List<XElement> footnoteEndnote = new List<XElement>();
-        #region CleanDocx
-        public List<XElement> CleanDocx(string path, string newPath, bool isTrue)
+        List<OpenXmlElement> footnoteEndnoteList = new List<OpenXmlElement>();
+
+        #region Start Body Docx
+        public void StartBodyDocx(string sourcePath, string targetPath, bool isEditable)
         {
-            string autoStyleConfig = @"C:\Users\Prathamesh.sulakhe\Desktop\Folders\Packages\02-09-2024\10Packages\New folder\AutostyleConfig.xml";
+            FetchRemoveAndAppendNotes(sourcePath, targetPath, isEditable);
+            CleanDocx(targetPath, isEditable);
+            AppendNotesToBody(targetPath, isEditable);
+            RemoveSectionBreaks(targetPath);
+            RemoveEmptyParagraphs(targetPath, isEditable);
+        }
+        #endregion
+
+
+        #region Finding Start and end of Body
+        public void CleanDocx(string newPath, bool isTrue)
+        {
+            string autoStyleConfig = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AutostyleConfig.xml");
             string abc = File.ReadAllText(autoStyleConfig);
             XElement autoStyleContent = XElement.Parse(abc);
             Regex cleanupRegex = new Regex(@"[:\-]+$", RegexOptions.Compiled);
@@ -45,38 +60,12 @@ namespace CleanWordFile
             Regex referencesRegex = new Regex(@"^\b\d? ?-? ?reference\b|^\b\d? ?-? ?references\b|^\bfurther reading\b|^\bliterature\b|^\bliterature cited\b$|^\bworks cited\b$|^\breferences cited\b$|^\breferencias\b$|^\bbibliography\b$|^\bbibliography list\b");
             Regex keywordsRegex = new Regex(@"^\bkeyword group\b|^\bkeyword\b|^\bkeywords\b|^\bkeyterms\b|^\bkey-word\b|^\bkey-words\b|^\bkey word\b|^\bkey words\b");
             bool isKeywordLast = false;
-            if (File.Exists(path))
+            if (File.Exists(newPath))
             {
-                File.Copy(path, newPath, true);
                 using (WordprocessingDocument wDoc = WordprocessingDocument.Open(newPath, isTrue))
                 {
                     var xDoc = wDoc.MainDocumentPart.GetXDocument();
                     XElement root = xDoc.Root;
-
-                    #region CheckFootnotesEndnotes
-                    var body = wDoc.MainDocumentPart.Document.Body;
-                    foreach (var footnoteReference in wDoc.MainDocumentPart.Document.Descendants<FootnoteReference>().ToList())
-                    {
-                        var footnote = wDoc.MainDocumentPart.FootnotesPart.Footnotes.Elements<Footnote>()
-                                           .FirstOrDefault(fn => fn.Id == footnoteReference.Id);
-                        if (footnote != null)
-                        {
-                            footnoteEndnote.Add(XElement.Parse(footnote.OuterXml));
-                        }
-                        footnoteReference.Remove();
-                    }
-
-                    foreach (var endnoteReference in wDoc.MainDocumentPart.Document.Descendants<EndnoteReference>().ToList())
-                    {
-                        var endnote = wDoc.MainDocumentPart.EndnotesPart.Endnotes.Elements<Endnote>()
-                                         .FirstOrDefault(en => en.Id == endnoteReference.Id);
-                        if (endnote != null)
-                        {
-                            footnoteEndnote.Add(XElement.Parse(endnote.OuterXml));
-                        }
-                        endnoteReference.Remove();
-                    }
-                    #endregion
 
                     #region DocxListForFrontMatter
                     //List<string> docxList = root.Descendants(W.p).Descendants(W.r).Descendants(W.t).Select(t => t.Value.ToLower().Trim()).Take(50).ToList();
@@ -183,37 +172,6 @@ namespace CleanWordFile
                     docxList = root.Descendants(W.p).ToList();
                     #endregion
 
-                    #region DocxListForBackMatter
-                    //string firstMatchingHeading = string.Empty;
-                    //int firstMatchingIndex = -1;
-
-                    //for (int i = 0; i <= docxList.Count - 1; i++)
-                    //{
-                    //    foreach (var heading in backMatterList)
-                    //    {
-                    //        if (docxList[i].Value.ToLower().StartsWith(heading) && docxList[i].Value.ToString().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length <= 3)  // Find the first match
-                    //        {
-                    //            firstMatchingHeading = heading;
-                    //            firstMatchingIndex = i;
-                    //        }
-                    //    }
-                    //}
-                    //if (firstMatchingIndex != -1)
-                    //{
-                    //    for (int i = firstMatchingIndex; i < docxList.Count; i++)
-                    //    {
-                    //        docxList[i].Remove();
-                    //    }
-                    //}
-                    //wDoc.MainDocumentPart.PutXDocument();
-                    #endregion
-
-                    #region ReloadMS2
-                    //xDoc = wDoc.MainDocumentPart.GetXDocument();
-                    //root = xDoc.Root;
-                    //docxList = root.Descendants(W.p).ToList();
-                    #endregion
-
                     #region References
                     try
                     {
@@ -235,7 +193,6 @@ namespace CleanWordFile
                         )
                         .FirstOrDefault();
 
-
                         var splitReferences = root.Descendants(W.p).Where(p => p.Ancestors(W.tc).Count() == 0 && p.Descendants(W.r).Any(r =>
                         {
                             var combinedText = string.Concat(p.Descendants(W.r).Descendants(W.t).Select(t => t.Value)).ToLower().Trim();
@@ -252,25 +209,7 @@ namespace CleanWordFile
 
                             if (refNext != null)
                             {
-                                //var refEndNote = refNext.Descendants(W.endnotePr).FirstOrDefault();
                                 var refInMan = references.ElementsAfterSelf().ToList();
-
-                                //if (refEndNote != null)
-                                //{
-                                //    var xEndnoteDoc = XDocument.Load(wDoc.MainDocumentPart.EndnotesPart.GetStream());
-                                //    XElement rootEndnote = xEndnoteDoc.Root;
-                                //    var precedingEle = rootEndnote.Descendants(W.p).ToList();
-                                //    foreach (var ele in precedingEle)
-                                //    {
-                                //        ele.RemoveNodes();
-                                //    }
-                                //    references.Remove();
-                                //    using (var stream = wDoc.MainDocumentPart.EndnotesPart.GetStream(FileMode.Create))
-                                //    {
-                                //        xEndnoteDoc.Save(stream);
-                                //    }
-                                //    wDoc.MainDocumentPart.PutXDocument();
-                                //}
                                 if (refInMan != null)
                                 {
                                     foreach (var _ref in refInMan)
@@ -278,16 +217,13 @@ namespace CleanWordFile
                                         _ref.Remove();
                                     }
                                     references.Remove();
-
-                                    wDoc.MainDocumentPart.PutXDocument();
                                 }
                             }
+                            wDoc.MainDocumentPart.PutXDocument();
                         }
                         else if (splitReferences != null)
                         {
-
                             var refNext = splitReferences.ElementsAfterSelf();
-
                             if (refNext != null)
                             {
                                 var refEndNote = refNext.Descendants(W.endnotePr).FirstOrDefault();
@@ -306,7 +242,6 @@ namespace CleanWordFile
                                     {
                                         xEndnoteDoc.Save(stream);
                                     }
-                                    wDoc.MainDocumentPart.PutXDocument();
                                 }
                                 else if (refInMan != null)
                                 {
@@ -316,94 +251,127 @@ namespace CleanWordFile
                                     }
                                     splitReferences.Remove();
 
-                                    wDoc.MainDocumentPart.PutXDocument();
                                 }
                             }
+                            wDoc.MainDocumentPart.PutXDocument();
                         }
-                        wDoc.MainDocumentPart.PutXDocument();
                     }
                     catch (Exception ex) { }
                     #endregion
+                    wDoc.MainDocumentPart.PutXDocument();
                     wDoc.Save();
                 }
             }
-            return footnoteEndnote;
         }
         #endregion
 
-        #region RemoveFootnotesEndnotes
-        public void RemoveFootnotesEndnotes(string filePath, List<XElement> footNoteEndNote, bool isTrue)
+        #region RemoveFootnotesEndnotesNew
+        public void FetchRemoveAndAppendNotes(string sourcePath, string targetPath, bool isEditable)
         {
-            using (WordprocessingDocument doc = WordprocessingDocument.Open(filePath, isTrue))
+            try
+            {
+                if (File.Exists(sourcePath))
+        {
+                    File.Copy(sourcePath, targetPath, true);
+
+                    using (WordprocessingDocument doc = WordprocessingDocument.Open(targetPath, isEditable))
             {
                 try
                 {
-                    var body = doc.MainDocumentPart.Document.Body;
-                    int counter = 1;
+                            var mainDocPart = doc.MainDocumentPart;
 
-                    foreach (var footnoteReference in doc.MainDocumentPart.Document.Descendants<FootnoteReference>().ToList())
+                            #region Fetch and Remove Footnotes
+                            foreach (var footnoteReference in mainDocPart.Document.Descendants<FootnoteReference>().ToList())
                     {
-                        var footnote = doc.MainDocumentPart.FootnotesPart.Footnotes.Elements<Footnote>()
+                                var footnote = mainDocPart.FootnotesPart?.Footnotes.Elements<Footnote>()
                                            .FirstOrDefault(fn => fn.Id == footnoteReference.Id);
+
                         if (footnote != null)
                         {
-                            //footnoteEndnote.Add(XElement.Parse(footnote.OuterXml));
-                            footNoteEndNote.Add(XElement.Parse(footnote.OuterXml));
+                                    foreach (var paragraph in footnote.Elements<Paragraph>())
+                                    {
+                                        var clonedParagraph = new Paragraph();
+                                        clonedParagraph.Append(paragraph.Elements<Run>().Select(run => run.CloneNode(true)));
+                                        // clonedParagraph.ParagraphProperties = new ParagraphProperties(new ParagraphStyleId() { Val = "Para" });
+                                        footnoteEndnoteList.Add(clonedParagraph);
+                                    }
                         }
                         footnoteReference.Remove();
                     }
+                            #endregion
 
-                    foreach (var endnoteReference in doc.MainDocumentPart.Document.Descendants<EndnoteReference>().ToList())
+                            #region Fetch and Remove Endnotes
+                            foreach (var endnoteReference in mainDocPart.Document.Descendants<EndnoteReference>().ToList())
                     {
-                        var endnote = doc.MainDocumentPart.EndnotesPart.Endnotes.Elements<Endnote>()
+                                var endnote = mainDocPart.EndnotesPart?.Endnotes.Elements<Endnote>()
                                          .FirstOrDefault(en => en.Id == endnoteReference.Id);
+
                         if (endnote != null)
                         {
-                            //footnoteEndnote.Add(XElement.Parse(endnote.OuterXml));
-                            footNoteEndNote.Add(XElement.Parse(endnote.OuterXml));
+                                    foreach (var paragraph in endnote.Elements<Paragraph>())
+                                    {
+                                        var clonedParagraph = new Paragraph();
+                                        clonedParagraph.Append(paragraph.Elements<Run>().Select(run => run.CloneNode(true)));
+                                        clonedParagraph.ParagraphProperties = new ParagraphProperties(new ParagraphStyleId() { Val = "Para" });
+                                        footnoteEndnoteList.Add(clonedParagraph);
+                                    }
                         }
                         endnoteReference.Remove();
                     }
-                    if (footNoteEndNote.Count() > 0)
+                            #endregion
+
+                            if (footnoteEndnoteList.Count > 0)
                     {
-                        var paraHeading = new Paragraph(new Run(new Text("Footnote/Endnote")));
+                                var headingPara = new Paragraph(new Run(new Text("Footnote/Endnote")));
                         var headingProperties = new ParagraphProperties(new ParagraphStyleId() { Val = "Heading1" });
-                        paraHeading.InsertAt(headingProperties, 0);
-                        body.Append(paraHeading);
+                                headingPara.InsertAt(headingProperties, 0);
+                                footnoteEndnoteList.Insert(0, headingPara);
                     }
 
-                    foreach (var item in footNoteEndNote)
-                    {
-                        string textContent = string.Empty;
-                        foreach (var textElement in item.Descendants(W.t))
+                            mainDocPart.Document.Save();
+                        }
+                        catch (Exception ex)
                         {
-                            if (!string.IsNullOrEmpty(textElement.Value))
-                            {
-                                textContent += textElement.Value.Trim() + " ";
-                            }
+                            Console.WriteLine($"Error: {ex.Message}");
                         }
 
-                        if (!string.IsNullOrWhiteSpace(textContent))
-                        {
-                            var numberedParagraph = new Paragraph(new Run(new Text(counter.ToString() + ". " + textContent.Trim())));
-                            var numberingProperties = new NumberingProperties(new NumberingLevelReference() { Val = 0 });
-                            numberedParagraph.PrependChild(numberingProperties);
-                            body.Append(numberedParagraph);
-                            counter++;
-                            //var newParagraph = new Paragraph(new Run(new Text(textContent.Trim())));
-                        }
                     }
-                    doc.MainDocumentPart.Document.Save();
                 }
-                catch (Exception ex)
-                { }
             }
+            catch (Exception ex) { }
+        }
+        #endregion
+
+        #region Append FootEndnotes in Body
+        public void AppendNotesToBody(string targetPath, bool isEditable)
+        {
+            try
+            {
+                if (footnoteEndnoteList.Count == 0)
+                    return;
+
+                using (WordprocessingDocument wDoc = WordprocessingDocument.Open(targetPath, isEditable))
+                        {
+                    var mainPart = wDoc.MainDocumentPart;
+                    var body = mainPart.Document.Body;
+
+                    foreach (var note in footnoteEndnoteList)
+                    {
+                        body.Append(note.CloneNode(true));
+                    }
+                    footnoteEndnoteList.Clear();
+                    mainPart.Document.Save();
+                }
+                }
+            catch (Exception ex) { }
         }
         #endregion
 
         #region Remove Blank Pages
         public void RemoveEmptyParagraphs(string newPath, bool isTrue)
         {
+            try
+            {
             using (WordprocessingDocument wDoc = WordprocessingDocument.Open(newPath, isTrue))
             {
                 XDocument root = wDoc.MainDocumentPart.GetXDocument();
@@ -440,8 +408,12 @@ namespace CleanWordFile
                 wDoc.MainDocumentPart.PutXDocument();
                 wDoc.Save();
             }
+            }
+            catch (Exception ex) { }
         }
         private bool IsParagraphEmptyOrPageBreak(XElement paragraph)
+        {
+            try
         {
             bool hasTextContent = paragraph.Descendants(W.t).Any(t => !string.IsNullOrWhiteSpace(t.Value));
             bool hasPageBreak = paragraph.Descendants(W.br)
@@ -449,17 +421,16 @@ namespace CleanWordFile
             bool hasSectionBreak = paragraph.Descendants(W.sectPr).Any();
             return !hasTextContent && (hasPageBreak || hasSectionBreak);
         }
-
-        //private bool IsParagraphEmptyOrPageBreak(XElement paragraph)
-        //{
-        //    return string.IsNullOrWhiteSpace(paragraph.Value) ||
-        //           paragraph.Descendants(W.br).Any(br => (string)br.Attribute(W.type) == "page");
-        //}
+            catch (Exception ex) { }
+            return false;
+        }
         #endregion
 
         #region Remove Section Breaks
         public void RemoveSectionBreaks(string filePath)
         {
+            try
+            {
             using (WordprocessingDocument wordDoc = WordprocessingDocument.Open(filePath, true))
             {
                 MainDocumentPart mainPart = wordDoc.MainDocumentPart;
@@ -482,6 +453,8 @@ namespace CleanWordFile
                 }
                 mainPart.Document.Save();
             }
+            }
+            catch (Exception ex) { }
         }
         #endregion
     }

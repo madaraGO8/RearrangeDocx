@@ -176,6 +176,46 @@ namespace Problems
                 return false;
             return true;
         }
+        public void Pattern()
+        {
+            #region Low to high
+            for (int i = 1; i < 4; i++)
+            {
+                int j = 0;
+                while (j < i)
+                {
+                    Console.Write("*");
+                    j++;
+                }
+                Console.WriteLine();
+            }
+            #endregion
+            #region High to low
+            for (int i = 3; i > 0; i--)
+            {
+                int j = i;
+                while (j > 0)
+                {
+                    Console.Write("*");
+                    j--;
+                }
+                Console.WriteLine();
+            }
+            #endregion
+        }
+        public void OddEve()
+        {
+            int number = 6;
+            string binary = Convert.ToString(number, 2);
+            if (binary.EndsWith("0"))
+            {
+                Console.WriteLine(number + " " + "is Even");
+            }
+            else
+            {
+                Console.WriteLine(number + " " + "is Odd");
+            }
+        }
 
 
     }

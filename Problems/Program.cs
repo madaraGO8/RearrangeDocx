@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace Problems
 {
@@ -19,6 +20,8 @@ namespace Problems
             new Solutions().LongestCommonPrefix(pre);
             new Solutions().CheckIfPangram(sentence);
             new Solutions().IsValid(bracs);
+            new Solutions().Pattern();
+            new Solutions().OddEve();
         }
     }
 }
